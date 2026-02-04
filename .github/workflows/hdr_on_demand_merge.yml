@@ -1,0 +1,150 @@
+name: Merge PR on Comment of 'merge'
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  merge-on-command:
+    if: github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check trigger conditions
+        id: check
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          AUTHORIZED_USER: "Savestate2A03"
+          TARGET_BRANCH: "_/-.xX_The_Collection_Xx.-/_"
+        run: |
+          # Trim whitespace and check if comment is exactly "merge"
+          TRIMMED=$(echo "$COMMENT_BODY" | xargs)
+          
+          echo "Comment author: $COMMENT_AUTHOR"
+          echo "Comment body: '$TRIMMED'"
+          echo "Authorized user: $AUTHORIZED_USER"
+          
+          # Check if author matches (case-insensitive)
+          if [ "${COMMENT_AUTHOR,,}" != "${AUTHORIZED_USER,,}" ]; then
+            echo "Not authorized user, skipping"
+            echo "should_merge=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if comment is exactly "merge" (case-insensitive)
+          if [ "${TRIMMED,,}" != "merge" ]; then
+            echo "Comment is not 'merge', skipping"
+            echo "should_merge=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "should_merge=true" >> $GITHUB_OUTPUT
+          echo "target_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Get PR details
+        if: steps.check.outputs.should_merge == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.issue.pull_request.url }}
+          TARGET_BRANCH: ${{ steps.check.outputs.target_branch }}
+        run: |
+          # Fetch PR details
+          PR_DATA=$(gh api "$PR_URL")
+          
+          PR_BASE=$(echo "$PR_DATA" | jq -r '.base.ref')
+          PR_HEAD=$(echo "$PR_DATA" | jq -r '.head.ref')
+          PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+          PR_HEAD_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')
+          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number')
+          
+          echo "PR #$PR_NUMBER: $PR_HEAD -> $PR_BASE"
+          echo "Head SHA: $PR_HEAD_SHA"
+          echo "Head repo: $PR_HEAD_REPO"
+          
+          # Check if PR targets the correct branch
+          if [ "$PR_BASE" != "$TARGET_BRANCH" ]; then
+            echo "PR targets '$PR_BASE', not '$TARGET_BRANCH', skipping"
+            echo "should_merge=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "should_merge=true" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "pr_head=$PR_HEAD" >> $GITHUB_OUTPUT
+          echo "pr_head_sha=$PR_HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "pr_head_repo=$PR_HEAD_REPO" >> $GITHUB_OUTPUT
+          echo "pr_base=$PR_BASE" >> $GITHUB_OUTPUT
+
+      - name: Checkout target branch
+        if: steps.check.outputs.should_merge == 'true' && steps.pr.outputs.should_merge == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.pr_base }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        if: steps.check.outputs.should_merge == 'true' && steps.pr.outputs.should_merge == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge PR branch
+        if: steps.check.outputs.should_merge == 'true' && steps.pr.outputs.should_merge == 'true'
+        id: merge
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          PR_HEAD: ${{ steps.pr.outputs.pr_head }}
+          PR_HEAD_SHA: ${{ steps.pr.outputs.pr_head_sha }}
+          PR_HEAD_REPO: ${{ steps.pr.outputs.pr_head_repo }}
+          PR_BASE: ${{ steps.pr.outputs.pr_base }}
+        run: |
+          # Add the PR's repo as a remote (handles forks)
+          git remote add pr_remote "https://github.com/$PR_HEAD_REPO.git" || true
+          git fetch pr_remote "$PR_HEAD"
+          
+          echo "Merging PR #$PR_NUMBER ($PR_HEAD_SHA) into $PR_BASE..."
+          
+          # Merge the PR (creates a merge commit, PR stays open)
+          if git merge "$PR_HEAD_SHA" --no-ff -m "Merge PR #$PR_NUMBER: $PR_HEAD into $PR_BASE (via merge command)"; then
+            echo "merge_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "merge_success=false" >> $GITHUB_OUTPUT
+            echo "Merge failed - likely conflicts"
+            exit 1
+          fi
+
+      - name: Push changes
+        if: steps.check.outputs.should_merge == 'true' && steps.pr.outputs.should_merge == 'true' && steps.merge.outputs.merge_success == 'true'
+        env:
+          PR_BASE: ${{ steps.pr.outputs.pr_base }}
+        run: |
+          git push origin "$PR_BASE"
+          echo "Successfully pushed merge to $PR_BASE"
+
+      - name: React to comment
+        if: steps.check.outputs.should_merge == 'true' && steps.pr.outputs.should_merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          MERGE_SUCCESS: ${{ steps.merge.outputs.merge_success }}
+        run: |
+          REACTION="rocket"
+          if [ "$MERGE_SUCCESS" != "true" ]; then
+            REACTION="confused"
+          fi
+          
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/issues/comments/$COMMENT_ID/reactions" \
+            -f content="$REACTION"
+
+      - name: Comment on failure
+        if: failure() && steps.check.outputs.should_merge == 'true' && steps.pr.outputs.should_merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "Auto-merge failed. There may be merge conflicts that need manual resolution."
