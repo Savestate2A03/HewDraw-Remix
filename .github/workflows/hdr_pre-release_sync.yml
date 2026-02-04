@@ -1,0 +1,90 @@
+name: Sync Fork with Upstream
+
+on:
+  # Run on a schedule (every 6 hours)
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Specific branch to sync (leave empty for all configured branches)'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        # Configure your branches to sync here
+        branch:
+          - main
+          - develop
+          # Add more branches as needed
+    
+    steps:
+      - name: Check if specific branch requested
+        id: check-branch
+        run: |
+          if [ -n "${{ github.event.inputs.branch }}" ] && [ "${{ github.event.inputs.branch }}" != "${{ matrix.branch }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout fork
+        if: steps.check-branch.outputs.skip == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        if: steps.check-branch.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        if: steps.check-branch.outputs.skip == 'false'
+        run: |
+          # Configure your upstream repository here
+          git remote add upstream https://github.com/${{ vars.UPSTREAM_REPO }}.git
+          git fetch upstream ${{ matrix.branch }}
+
+      - name: Check for changes
+        if: steps.check-branch.outputs.skip == 'false'
+        id: check-changes
+        run: |
+          LOCAL_SHA=$(git rev-parse HEAD)
+          UPSTREAM_SHA=$(git rev-parse upstream/${{ matrix.branch }})
+          
+          if [ "$LOCAL_SHA" = "$UPSTREAM_SHA" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "Branch ${{ matrix.branch }} is already up to date"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Branch ${{ matrix.branch }} has upstream changes"
+          fi
+
+      - name: Sync branch
+        if: steps.check-branch.outputs.skip == 'false' && steps.check-changes.outputs.has_changes == 'true'
+        run: |
+          echo "Syncing ${{ matrix.branch }} with upstream..."
+          
+          # Fast-forward merge if possible, otherwise rebase
+          git merge upstream/${{ matrix.branch }} --ff-only || {
+            echo "Fast-forward not possible, attempting rebase..."
+            git rebase upstream/${{ matrix.branch }}
+          }
+
+      - name: Push changes
+        if: steps.check-branch.outputs.skip == 'false' && steps.check-changes.outputs.has_changes == 'true'
+        run: |
+          git push origin ${{ matrix.branch }}
+          echo "✅ Successfully synced ${{ matrix.branch }}"
