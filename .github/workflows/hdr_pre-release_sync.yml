@@ -2,8 +2,8 @@ name: Sync Fork with Upstream
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  
+    - cron: '0 */6 * * *'
+
   workflow_dispatch:
     inputs:
       branch:
@@ -30,7 +30,7 @@ jobs:
       - name: Check if specific branch requested
         id: check-branch
         run: |
-          if [ -n "${{ github.event.inputs.branch }}" ] && [ "${{ github.event.inputs.branch }}" != "${{ matrix.branch }}" ]; then
+          if [ -n "${{ github.event.inputs.branch }}" ] && [ "${{ github.event.inputs.branch }}" != "${{ matrix.local }}" ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
           else
             echo "skip=false" >> $GITHUB_OUTPUT
@@ -40,7 +40,7 @@ jobs:
         if: steps.check-branch.outputs.skip == 'false'
         uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.branch }}
+          ref: ${{ matrix.local }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -52,39 +52,52 @@ jobs:
 
       - name: Add upstream remote
         if: steps.check-branch.outputs.skip == 'false'
+        env:
+          UPSTREAM_BRANCH: ${{ matrix.upstream }}
         run: |
-          # Configure your upstream repository here
-          git remote add upstream https://github.com/${{ vars.UPSTREAM_REPO }}.git
-          git fetch upstream ${{ matrix.branch }}
+          git remote add upstream "https://github.com/${{ vars.UPSTREAM_REPO }}.git"
+          echo "Fetching upstream branch: $UPSTREAM_BRANCH"
+          git fetch upstream "$UPSTREAM_BRANCH"
 
       - name: Check for changes
         if: steps.check-branch.outputs.skip == 'false'
         id: check-changes
+        env:
+          LOCAL_BRANCH: ${{ matrix.local }}
+          UPSTREAM_BRANCH: ${{ matrix.upstream }}
         run: |
+          echo "Local branch: $LOCAL_BRANCH"
+          echo "Upstream branch: $UPSTREAM_BRANCH"
           LOCAL_SHA=$(git rev-parse HEAD)
-          UPSTREAM_SHA=$(git rev-parse upstream/${{ matrix.branch }})
+          UPSTREAM_SHA=$(git rev-parse "upstream/$UPSTREAM_BRANCH")
           
           if [ "$LOCAL_SHA" = "$UPSTREAM_SHA" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "Branch ${{ matrix.branch }} is already up to date"
+            echo "Branch $LOCAL_BRANCH is already up to date with upstream/$UPSTREAM_BRANCH"
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "Branch ${{ matrix.branch }} has upstream changes"
+            echo "Branch $LOCAL_BRANCH has changes from upstream/$UPSTREAM_BRANCH"
           fi
 
       - name: Sync branch
         if: steps.check-branch.outputs.skip == 'false' && steps.check-changes.outputs.has_changes == 'true'
+        env:
+          LOCAL_BRANCH: ${{ matrix.local }}
+          UPSTREAM_BRANCH: ${{ matrix.upstream }}
         run: |
-          echo "Syncing ${{ matrix.branch }} with upstream..."
+          echo "Syncing $LOCAL_BRANCH with upstream/$UPSTREAM_BRANCH..."
           
           # Fast-forward merge if possible, otherwise rebase
-          git merge upstream/${{ matrix.branch }} --ff-only || {
+          git merge "upstream/$UPSTREAM_BRANCH" --ff-only || {
             echo "Fast-forward not possible, attempting rebase..."
-            git rebase upstream/${{ matrix.branch }}
+            git rebase "upstream/$UPSTREAM_BRANCH"
           }
 
       - name: Push changes
         if: steps.check-branch.outputs.skip == 'false' && steps.check-changes.outputs.has_changes == 'true'
+        env:
+          LOCAL_BRANCH: ${{ matrix.local }}
+          UPSTREAM_BRANCH: ${{ matrix.upstream }}
         run: |
-          git push origin ${{ matrix.branch }}
-          echo "✅ Successfully synced ${{ matrix.branch }}"
+          git push origin "$LOCAL_BRANCH"
+          echo "Successfully synced $LOCAL_BRANCH ← upstream/$UPSTREAM_BRANCH"
