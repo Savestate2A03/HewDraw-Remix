@@ -1,11 +1,9 @@
 name: Sync Fork with Upstream
 
 on:
-  # Run on a schedule (every 6 hours)
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 0 * * *'
   
-  # Allow manual trigger
   workflow_dispatch:
     inputs:
       branch:
@@ -20,11 +18,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Configure your branches to sync here
-        branch:
-          - main
-          - develop
-          # Add more branches as needed
+        include:
+          - local: pre-release
+            upstream: pre-release
+          - local: pre-release-parallel
+            upstream: pre-release-parallel
+          - local: _/-.xX_The_Collection_Xx.-/_
+            upstream: pre-release
     
     steps:
       - name: Check if specific branch requested
