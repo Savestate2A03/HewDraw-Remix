@@ -6,6 +6,7 @@ pub mod util;
 pub mod singletons;
 pub mod consts;
 pub mod ext;
+pub mod types;
 mod modules;
 pub mod frame_info;
 pub mod game_modes;

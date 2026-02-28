@@ -3,6 +3,7 @@ use super::*;
 use globals::*;
 use interpolation::Lerp;
 use utils::game_modes::CustomMode;
+use utils::types::BufferSettings;
 
 pub fn install() {
     skyline::nro::add_hook(nro_hook);
@@ -671,16 +672,16 @@ unsafe fn ftStatusUniqProcessDamage_init(fighter: &mut L2CFighterCommon, arg2: L
     sv_information::damage_log_value(fighter.lua_state_agent);
     let level = fighter.pop_lua_stack(1).get_i32();
 
-    let precede = WorkModule::get_param_int(fighter.module_accessor, hash40("common"), hash40("precede"));
+    let diff = (get_buffer_from_controls(fighter.module_accessor) - BufferSettings[1]).max(0) as i32; // currently balanced for Low
 
     // Reduce buffer during non-tumble kb
     if level == *DAMAGE_LEVEL_2 {
         let damage_level2_precede = ParamModule::get_int(fighter.battle_object, ParamType::Common, "damage_level2_precede");
-        InputModule::set_command_life_count_max(fighter.battle_object, damage_level2_precede as u32);
+        InputModule::set_command_life_count_max(fighter.battle_object, (damage_level2_precede + diff) as u32);
     }
     else if level == *DAMAGE_LEVEL_3 {
         let damage_level3_precede = ParamModule::get_int(fighter.battle_object, ParamType::Common, "damage_level3_precede");
-        InputModule::set_command_life_count_max(fighter.battle_object, damage_level3_precede as u32);
+        InputModule::set_command_life_count_max(fighter.battle_object, (damage_level3_precede + diff) as u32);
     }
 }
 
@@ -713,16 +714,16 @@ unsafe fn ftStatusUniqProcessDamageAir_init(fighter: &mut L2CFighterCommon, arg2
     sv_information::damage_log_value(fighter.lua_state_agent);
     let level = fighter.pop_lua_stack(1).get_i32();
 
-    let precede = WorkModule::get_param_int(fighter.module_accessor, hash40("common"), hash40("precede"));
+    let diff = (get_buffer_from_controls(fighter.module_accessor) - BufferSettings[1]).max(0) as i32; // currently balanced for Low
 
     // Reduce buffer during non-tumble kb
     if level == *DAMAGE_LEVEL_2 {
         let damage_level2_precede = ParamModule::get_int(fighter.battle_object, ParamType::Common, "damage_level2_precede");
-        InputModule::set_command_life_count_max(fighter.battle_object, damage_level2_precede as u32);
+        InputModule::set_command_life_count_max(fighter.battle_object, (damage_level2_precede + diff) as u32);
     }
     else if level == *DAMAGE_LEVEL_3 {
         let damage_level3_precede = ParamModule::get_int(fighter.battle_object, ParamType::Common, "damage_level3_precede");
-        InputModule::set_command_life_count_max(fighter.battle_object, damage_level3_precede as u32);
+        InputModule::set_command_life_count_max(fighter.battle_object, (damage_level3_precede + diff) as u32);
     }
 }
 

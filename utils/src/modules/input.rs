@@ -541,11 +541,14 @@ fn exec_internal(input_module: &mut InputModule, control_module: u64, call_origi
     let tap_buffer = input_module.command_life_count_max;
     let precede = unsafe {
         if tap_buffer == -1 {
-            ParamModule::get_int(&mut (*input_module.owner), ParamType::Common, "precede")
+            get_buffer_from_controls((*input_module.owner).module_accessor) as i32
         } else {
             tap_buffer
         }
     };
+
+    // precede used to just mean tap buffer, it now means command
+    // life unless the command is specifically a tap buffer
     *command_life_max = precede as u32;
 
     unsafe {
