@@ -142,7 +142,7 @@ pub unsafe fn status_LandingStiffness(fighter: &mut L2CFighterCommon) -> L2CValu
         }
         else {
             // Reduce buffer out of non-CCd non-tumble hitstun landing
-            let diff = (get_buffer_from_controls(fighter.module_accessor) - BufferSettings[1]).max(0) as i32; // currently balanced for Low
+            let diff = ((get_buffer_from_controls(fighter.module_accessor) as i32) - (BufferSettings[1] as i32)).max(0); // currently balanced for Low
             let damage_level3_precede = ParamModule::get_int(fighter.battle_object, ParamType::Common, "damage_level3_precede");
             InputModule::set_command_life_count_max(fighter.battle_object, (damage_level3_precede + diff) as u32);
         }
