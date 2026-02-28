@@ -672,7 +672,7 @@ unsafe fn ftStatusUniqProcessDamage_init(fighter: &mut L2CFighterCommon, arg2: L
     sv_information::damage_log_value(fighter.lua_state_agent);
     let level = fighter.pop_lua_stack(1).get_i32();
 
-    let diff = (get_buffer_from_controls(fighter.module_accessor) - BufferSettings[1]).max(0) as i32; // currently balanced for Low
+    let diff = ((get_buffer_from_controls(fighter.module_accessor) as i32) - (BufferSettings[1] as i32)).max(0); // currently balanced for Low
 
     // Reduce buffer during non-tumble kb
     if level == *DAMAGE_LEVEL_2 {
@@ -714,7 +714,7 @@ unsafe fn ftStatusUniqProcessDamageAir_init(fighter: &mut L2CFighterCommon, arg2
     sv_information::damage_log_value(fighter.lua_state_agent);
     let level = fighter.pop_lua_stack(1).get_i32();
 
-    let diff = (get_buffer_from_controls(fighter.module_accessor) - BufferSettings[1]).max(0) as i32; // currently balanced for Low
+    let diff = ((get_buffer_from_controls(fighter.module_accessor) as i32) - (BufferSettings[1] as i32)).max(0); // currently balanced for Low
 
     // Reduce buffer during non-tumble kb
     if level == *DAMAGE_LEVEL_2 {
