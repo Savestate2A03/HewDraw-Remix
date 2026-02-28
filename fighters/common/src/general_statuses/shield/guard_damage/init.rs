@@ -81,9 +81,9 @@ unsafe fn sub_ftStatusUniqProcessGuardDamage_initStatus_Inner(fighter: &mut L2CF
 
         let guard_damage_precede = ParamModule::get_int(fighter.battle_object, ParamType::Common, "guard_damage_precede");
 
-        // currently balanced for Low.min(guard_damage_precede);
+        // currently balanced for Low
         // did not change from original guard_damage_precede with balance patches hence the min check as well.
-        let diff = (get_buffer_from_controls(fighter.module_accessor) - BufferSettings[1]).max(0).min(guard_damage_precede as u8) as i32; 
+        let diff = ((get_buffer_from_controls(fighter.module_accessor) as i32) - (BufferSettings[1] as i32)).max(0).min(guard_damage_precede);
 
         InputModule::set_command_life_count_max(fighter.battle_object, (guard_damage_precede + diff) as u32);
     } 
