@@ -1,2 +1,3 @@
 # change to your own directory
+# rename to remove .example
 ULTIMATE_PATH_USER=/mnt/c/Users/username/dev/YUZU_HDR/user/sdmc/ultimate

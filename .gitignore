@@ -27,3 +27,4 @@ scripts/artifacts/deletions.json
 **/Cargo.lock
 sym.log
 .symbaker
+scripts/BUILD-WSL-2026.ini
